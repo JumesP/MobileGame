@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { GameEngine } from 'react-native-game-engine';
 import Player from './components/Player';
 import Obstacle from './components/Obstacle';
@@ -9,9 +9,16 @@ import EndScreen from './components/EndScreen';
 
 export default function App() {
   const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'end'
+  const [score, setScore] = useState(0);
 
-  const startGame = () => setGameState('playing');
+  const startGame = () => {
+    setScore(0); // Reset score when the game starts
+    setGameState('playing');
+  };
+
   const endGame = () => setGameState('end');
+
+  const updateScore = () => setScore(prevScore => prevScore + 1);
 
   const entities = {
     player: { position: [1, 500], size: [50, 50], lane: 1, renderer: <Player /> },
@@ -25,11 +32,12 @@ export default function App() {
       {gameState === 'end' && <EndScreen onRestart={startGame} />}
       {gameState === 'playing' && (
         <View style={styles.gameContainer}>
+          <Text style={styles.score}>Score: {score}</Text>
           <View style={styles.laneDivider} />
           <View style={styles.laneDividerSecond} />
           <GameEngine
             style={styles.gameEngine}
-            systems={[Physics(endGame)]}
+            systems={[Physics(endGame, updateScore)]}
             entities={entities}
           />
         </View>
@@ -49,6 +57,14 @@ const styles = StyleSheet.create({
   },
   gameEngine: {
     flex: 1,
+  },
+  score: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'black',
   },
   laneDivider: {
     position: 'absolute',

@@ -1,4 +1,4 @@
-const Physics = (endGame) => (entities, { touches, time }) => {
+const Physics = (endGame, updateScore) => (entities, { touches, time }) => {
   let player = entities.player;
   let obstacles = [entities.obstacle1, entities.obstacle2];
 
@@ -8,6 +8,7 @@ const Physics = (endGame) => (entities, { touches, time }) => {
     if (obstacle.position[1] > 600) {
       obstacle.position[1] = -50;
       obstacle.lane = Math.floor(Math.random() * 3);
+      updateScore(); // Increment score when an obstacle resets
     }
 
     // Adjust obstacle position based on lane
