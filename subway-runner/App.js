@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect, useRef } from 'react';
-import Snowball from './components/Snowball';
+import { Snowball, SnowballComponent } from './components/Snowball';
 import { Obstacle, OBSTACLE_TYPES, ObstacleComponent } from './components/Obstacle';
 
 const { width, height } = Dimensions.get('window');
@@ -15,7 +15,15 @@ export default function App() {
     const [gameStarted, setGameStarted] = useState(false);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
-    const [playerPosition, setPlayerPosition] = useState({ x: width / 2 - 25, y: 100 });
+
+    // Use a ref to hold the player instance
+    const playerRef = useRef(new Snowball({ x: width / 2 - 25, y: 300}));
+    const [playerPosition, setPlayerPosition] = useState(playerRef.current.position);
+
+    // Store actual collision boxes for visualization
+    const [playerHitbox, setPlayerHitbox] = useState(null);
+    const [obstacleHitboxes, setObstacleHitboxes] = useState([]);
+
     const [obstacles, setObstacles] = useState([]);
     const gameLoopRef = useRef(null);
     const frameCountRef = useRef(0);
@@ -30,7 +38,7 @@ export default function App() {
             gameLoopRef.current = setInterval(() => {
                 frameCountRef.current += 1;
                 // console.log('Frame count:', frameCountRef.current);
-                // console.log('Player position:', playerPosition);
+                console.log('Player position:', playerPosition);
 
                 // Increment score
                 setScore(prevScore => prevScore + 1);
@@ -54,8 +62,14 @@ export default function App() {
                             baseSpeed
                         );
 
-                        if (newObstacle) {
-                            setObstacles(prevObstacles => [...prevObstacles, newObstacle]);
+                        // console.log('New obstacle created:', newObstacle.id);
+
+                        if (newObstacle && newObstacle.id && newObstacle.position) {
+                            setObstacles(prevObstacles => {
+                                const updated = [...prevObstacles, newObstacle];
+                                // console.log("new obstacles (inside setObstacles):", updated);
+                                return updated;
+                            });
                         }
                     } catch (error) {
                         console.log('Error creating obstacle:', error);
@@ -120,14 +134,45 @@ export default function App() {
                 });
 
                 // Check for collisions
+                const playerBounds = playerRef.current.getBounds();
+                // Create the proper coordinates for collision detection
                 const playerRect = {
-                    left: playerPosition.x,
-                    right: playerPosition.x + 50,
-                    top: height - playerPosition.y - 50,
-                    bottom: height - playerPosition.y,
+                    left: playerBounds.left,
+                    right: playerBounds.right,
+                    top: playerBounds.top,
+                    bottom: playerBounds.bottom
                 };
 
-                const collision = obstacles.some(obstacle => obstacle.checkCollision(playerRect));
+                // Save player hitbox for visualization
+                setPlayerHitbox(playerRect);
+
+                // Calculate and save obstacle hitboxes
+                const newObstacleHitboxes = obstacles.map(obstacle => {
+                    if (!obstacle || !obstacle.position || !obstacle.size) return null;
+
+                    return {
+                        id: obstacle.id,
+                        left: obstacle.position.x,
+                        right: obstacle.position.x + (obstacle.size.width || 50),
+                        top: obstacle.position.y,
+                        bottom: obstacle.position.y + (obstacle.size.height || 50)
+                    };
+                }).filter(box => box !== null);
+
+                setObstacleHitboxes(newObstacleHitboxes);
+
+                const collision = obstacles.some(obstacle => {
+                    console.log('Checking collision with obstacle:', obstacle.id, 'at position:', obstacle.position);
+                    if (obstacle && typeof obstacle.checkCollision === 'function') {
+                        const collisionResult = obstacle.checkCollision(playerRect);
+                        if (collisionResult) {
+                            console.log('COLLISION DETECTED!');
+                            return true;
+                        }
+                        return false;
+                    }
+                    return false;
+                });
 
                 if (collision) {
                     setGameOver(true);
@@ -146,14 +191,32 @@ export default function App() {
     const moveLeft = () => {
         if (currentLaneIndex.current > 0) {
             currentLaneIndex.current -= 1;
-            setPlayerPosition(prev => ({ ...prev, x: lanes[currentLaneIndex.current] }));
+
+            // Calculate the amount to move (distance to the target lane)
+            const targetX = lanes[currentLaneIndex.current];
+            const moveAmount = playerRef.current.position.x - targetX;
+
+            // Use the Snowball's moveLeft method
+            playerRef.current.moveLeft(moveAmount);
+
+            // Update state to trigger re-render
+            setPlayerPosition({ ...playerRef.current.position });
         }
     };
 
     const moveRight = () => {
         if (currentLaneIndex.current < 2) {
             currentLaneIndex.current += 1;
-            setPlayerPosition(prev => ({ ...prev, x: lanes[currentLaneIndex.current] }));
+
+            // Calculate the amount to move (distance to the target lane)
+            const targetX = lanes[currentLaneIndex.current];
+            const moveAmount = targetX - playerRef.current.position.x;
+
+            // Use the Snowball's moveRight method
+            playerRef.current.moveRight(moveAmount);
+
+            // Update state to trigger re-render
+            setPlayerPosition({ ...playerRef.current.position });
         }
     };
 
@@ -161,7 +224,11 @@ export default function App() {
         setGameOver(false);
         setGameStarted(false);
         setScore(0);
-        setPlayerPosition({ x: width / 2 - 25, y: 100 });
+
+        // Reset player
+        playerRef.current = new Snowball({ x: width / 2 - 25, y: 100 });
+        setPlayerPosition({ ...playerRef.current.position });
+
         setObstacles([]);
         frameCountRef.current = 0;
         currentLaneIndex.current = 1;
@@ -185,8 +252,38 @@ export default function App() {
                         <Text style={styles.scoreText}>Score: {score}</Text>
 
                         {/* Game area */}
-                        <View style={styles.gameArea}>
-                            <Snowball position={playerPosition} />
+                        <View
+                            style={styles.gameArea}
+                            onStartShouldSetResponder={() => true}
+                            onMoveShouldSetResponder={() => true}
+                            onResponderGrant={(event) => {
+                                const { locationX, locationY } = event.nativeEvent;
+                                console.log('Touch position:', {
+                                    x: locationX,
+                                    y: locationY,
+                                    rect: {
+                                        left: locationX,
+                                        right: locationX,
+                                        top: locationY,
+                                        bottom: locationY
+                                    }
+                                });
+                            }}
+                            onResponderMove={(event) => {
+                                const { locationX, locationY } = event.nativeEvent;
+                                console.log('Touch position:', {
+                                    x: locationX,
+                                    y: locationY,
+                                    rect: {
+                                        left: locationX,
+                                        right: locationX,
+                                        top: locationY,
+                                        bottom: locationY
+                                    }
+                                });
+                            }}
+                        >
+                            <SnowballComponent position={playerPosition} />
 
                             {obstacles.map(obstacle => {
                                 // Add safety checks to make sure all required properties exist
@@ -206,9 +303,28 @@ export default function App() {
                                 );
                             })}
 
-                            {/* Lane dividers */}
-                            <View style={[styles.lane, { left: width * 0.33 }]} />
-                            <View style={[styles.lane, { left: width * 0.66 }]} />
+                            {/* Player hitbox visualization - showing actual collision boundaries */}
+                            {playerHitbox && (
+                                <View style={[styles.hitbox, styles.playerHitbox, {
+                                    left: playerHitbox.left,
+                                    top: playerHitbox.top,
+                                    width: playerHitbox.right - playerHitbox.left,
+                                    height: playerHitbox.bottom - playerHitbox.top,
+                                }]} />
+                            )}
+
+                            {/* Obstacle hitboxes visualization - showing actual collision boundaries */}
+                            {obstacleHitboxes.map(box => (
+                                <View
+                                    key={`hitbox-${box.id}`}
+                                    style={[styles.hitbox, styles.obstacleHitbox, {
+                                        left: box.left,
+                                        top: box.top,
+                                        width: box.right - box.left,
+                                        height: box.bottom - box.top,
+                                    }]}
+                                />
+                            ))}
                         </View>
 
                         {/* Game controls */}
@@ -340,5 +456,17 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    hitbox: {
+        position: 'absolute',
+        borderColor: 'yellow',
+        borderWidth: 2,
+        opacity: 0.7,
+    },
+    playerHitbox: {
+        borderColor: 'blue',
+    },
+    obstacleHitbox: {
+        borderColor: 'red',
     },
 });
