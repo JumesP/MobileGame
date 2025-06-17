@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 
-const Obstacle = ({ position, size }) => {
+const Player = ({ position, size }) => {
   return (
     <View
       style={{
@@ -10,7 +10,7 @@ const Obstacle = ({ position, size }) => {
         top: position[1],
         width: size[0],
         height: size[1],
-        backgroundColor: 'red',
+        backgroundColor: 'blue',
         borderWidth: 2,
         borderColor: 'black',
       }}
@@ -18,4 +18,4 @@ const Obstacle = ({ position, size }) => {
   );
 };
 
-export default Obstacle;
+export default Player;

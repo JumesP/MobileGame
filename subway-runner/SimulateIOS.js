@@ -1,7 +1,11 @@
-// SimulateIOS.js
+import React from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
 const { execSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+// Measure time taken for each step
+console.time('Simulator Setup');
 
 // Function to check if Xcode is installed
 function checkXcodeInstalled() {
@@ -16,40 +20,56 @@ function checkXcodeInstalled() {
 // Function to create a simulator device if none exists
 function createSimulatorDevice() {
   console.log('No iOS simulator devices found. Attempting to create one...');
+    // Jump function (specific to Snowball)
+    jump(height) {
+        this.speed.y = height || 15;
+        return this.position;
+    }
+
+    // Add required properties for react-native-game-engine
+    static entityType = 'player';
+
 
   try {
+    console.time('Fetching Runtimes');
     // Get available runtimes
     const runtimesOutput = execSync('xcrun simctl list runtimes available -j').toString();
     const runtimes = JSON.parse(runtimesOutput).runtimes;
+    console.timeEnd('Fetching Runtimes');
 
     if (runtimes.length === 0) {
       console.error('No iOS runtimes available. Please open Xcode and install iOS simulator runtimes.');
       return null;
     }
 
+    console.time('Sorting Runtimes');
     // Sort runtimes by version to get the latest one
-    runtimes.sort((a, b) => {
-      const versionA = parseInt(a.version.split('.')[0], 10) || 0;
-      const versionB = parseInt(b.version.split('.')[0], 10) || 0;
-      return versionB - versionA;
-    });
+    const latestRuntime = runtimes.reduce((latest, current) => {
+      const versionA = parseFloat(latest.version) || 0;
+      const versionB = parseFloat(current.version) || 0;
+      return versionB > versionA ? current : latest;
+    }, runtimes[0]);
+    console.timeEnd('Sorting Runtimes');
 
-    const latestRuntime = runtimes[0];
-    console.log(`Using runtime: ${latestRuntime.name}`);
+    console.log(`Selected runtime: ${latestRuntime.name} (${latestRuntime.version})`);
 
     // Create a new iPhone device with the latest runtime
     const deviceName = `iPhone-Simulator-${Date.now()}`;
     const deviceType = 'iPhone 14'; // A relatively modern iPhone model
 
     console.log(`Creating simulator device: ${deviceName} (${deviceType})`);
+export default SnowballComponent;
+
     const output = execSync(`xcrun simctl create "${deviceName}" "${deviceType}" ${latestRuntime.identifier}`).toString().trim();
 
     console.log(`Successfully created simulator device with ID: ${output}`);
     return output;
   } catch (error) {
-    console.error('Error creating simulator device:', error.message);
+    console.error('Error creating simulator device:', error);
     return null;
   }
+
+  console.timeEnd('Simulator Setup');
 }
 
 // Function to start the iOS simulator
@@ -86,23 +106,24 @@ function startIOSSimulator() {
       }
     }
 
-    // Boot the simulator if it's not already running
-    console.log('Booting simulator...');
+    console.log('Checking if simulator is running...');
+    const simulatorStatus = execSync('xcrun simctl list devices available -j').toString();
+    console.log('Simulator status:', simulatorStatus);
+
+    console.log('Attempting to boot the simulator...');
     try {
       execSync(`xcrun simctl boot ${simulatorId}`);
+      console.log('Simulator booted successfully.');
     } catch (error) {
-      console.log('Simulator may already be booted, continuing...');
+      console.log('Simulator may already be booted. Continuing...');
     }
 
-    // Open the simulator
     console.log('Opening Simulator app...');
     execSync('open -a Simulator');
 
-    // Wait for simulator to fully start
-    console.log('Waiting for simulator to start up (15 seconds)...');
+    console.log('Waiting for simulator to fully start (15 seconds)...');
     execSync('sleep 15');
 
-    // Start Expo for iOS
     console.log('Starting Expo on iOS simulator...');
     spawnSync('npx', ['expo', 'start', '--ios'], {
       stdio: 'inherit',
