@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
-const Player = ({ position }) => {
+const Snowball = ({ position }) => {
   return (
     <View
       style={[
@@ -25,4 +25,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Player;
+export default Snowball;
