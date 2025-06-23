@@ -8,7 +8,7 @@ const Player = ({ position }) => {
                 styles.player,
                 {
                     left: position.x,
-                    bottom: position.y,
+                    top: position.y, // Use top instead of bottom
                 },
             ]}
         />
@@ -19,9 +19,9 @@ const styles = StyleSheet.create({
     player: {
         width: 50,
         height: 50,
-        backgroundColor: '#4169e1', // Royal blue color matching Player class
+        backgroundColor: '#4169e1',
         position: 'absolute',
-        borderRadius: 15, // Matching the Player class borderRadius
+        borderRadius: 15,
     },
 });
 
